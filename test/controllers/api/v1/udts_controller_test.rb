@@ -106,7 +106,80 @@ module Api
         valid_get api_v1_udt_url(udt.type_hash)
 
         response_tx_transaction = json["data"]
-        assert_equal %w(symbol full_name total_amount addresses_count decimal).sort, response_tx_transaction["attributes"].keys.sort
+        assert_equal %w(symbol full_name total_amount addresses_count decimal icon_file).sort, response_tx_transaction["attributes"].keys.sort
+      end
+
+      test "should get success code when call index" do
+        valid_get api_v1_udts_url
+
+        assert_response :success
+      end
+
+      test "should set right content type when call index" do
+        valid_get api_v1_udts_url
+
+        assert_equal "application/vnd.api+json", response.media_type
+      end
+
+      test "should respond with 415 Unsupported Media Type when Content-Type is wrong when call index" do
+        get api_v1_udts_url, headers: { "Content-Type": "text/plain" }
+
+        assert_equal 415, response.status
+      end
+
+      test "should respond with error object when Content-Type is wrong when call index" do
+        error_object = Api::V1::Exceptions::InvalidContentTypeError.new
+        response_json = RequestErrorSerializer.new([error_object], message: error_object.title).serialized_json
+
+        get api_v1_udts_url, headers: { "Content-Type": "text/plain" }
+
+        assert_equal response_json, response.body
+      end
+
+      test "should respond with 406 Not Acceptable when Accept is wrong when call index" do
+        get api_v1_udts_url, headers: { "Content-Type": "application/vnd.api+json", "Accept": "application/json" }
+
+        assert_equal 406, response.status
+      end
+
+      test "should respond with error object when Accept is wrong when call index" do
+        error_object = Api::V1::Exceptions::InvalidAcceptError.new
+        response_json = RequestErrorSerializer.new([error_object], message: error_object.title).serialized_json
+
+        get api_v1_udts_url, headers: { "Content-Type": "application/vnd.api+json", "Accept": "application/json" }
+
+        assert_equal response_json, response.body
+      end
+
+      test "should get empty array when there are no udts" do
+        valid_get api_v1_udts_url
+
+        assert_empty json["data"]
+      end
+
+      test "should return udts in order of descending addresses count" do
+        udt1 = create(:udt, addresses_count: 1, published: true)
+        udt2 = create(:udt, addresses_count: 2)
+        udt3 = create(:udt, addresses_count: 3)
+
+        valid_get api_v1_udts_url
+
+        expected_udts = UdtSerializer.new([udt3, udt2, udt1]).serialized_json
+
+        assert_equal expected_udts, response.body
+      end
+
+      test "unpublished udt symbol field should show args last 2 bytes" do
+        udt1 = create(:udt, addresses_count: 1, published: true)
+        udt2 = create(:udt, addresses_count: 2, args: "0x94bbc8327e16d195de87815c391e7b9131e80419c51a405a0b21227c6ee05129")
+
+        valid_get api_v1_udts_url
+
+        expected_published_udt_name = udt1.symbol
+        expected_unpublished_udt_name = udt2.args
+
+        assert_equal expected_unpublished_udt_name, json["data"][0]
+        assert_equal expected_published_udt_name, json["data"][1]
       end
     end
   end

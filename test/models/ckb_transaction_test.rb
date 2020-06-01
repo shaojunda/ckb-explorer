@@ -21,6 +21,7 @@ class CkbTransactionTest < ActiveSupport::TestCase
         )
       )
       node_block = CkbSync::Api.instance.get_block_by_number(DEFAULT_NODE_BLOCK_NUMBER)
+      create(:block, :with_block_hash, number: node_block.header.number - 1)
       CkbSync::NodeDataProcessor.new.process_block(node_block)
       block = Block.find_by(number: DEFAULT_NODE_BLOCK_NUMBER)
       ckb_transaction = block.ckb_transactions.first
@@ -187,7 +188,7 @@ class CkbTransactionTest < ActiveSupport::TestCase
     cell_input = ckb_transaction.cell_inputs.first
     cell_input.update(previous_output: { "tx_hash": udt_input_transaction.tx_hash, "index": "0" })
     expected_attributes = %i(id from_cellbase capacity address_hash generated_tx_hash udt_info cell_index cell_type).sort
-    expected_udt_attributes = %i(symbol amount decimal type_hash_short published).sort
+    expected_udt_attributes = %i(symbol amount decimal type_hash published).sort
     expected_display_input = CkbUtils.hash_value_to_s({ id: udt_cell_output.id, from_cellbase: false, capacity: udt_cell_output.capacity, address_hash: udt_cell_output.address_hash, generated_tx_hash: udt_cell_output.generated_by.tx_hash, cell_index: udt_cell_output.cell_index, cell_type: udt_cell_output.cell_type, udt_info: udt_cell_output.udt_info })
 
     assert_equal expected_attributes, ckb_transaction.display_inputs.first.keys.sort
@@ -203,7 +204,7 @@ class CkbTransactionTest < ActiveSupport::TestCase
     create(:udt, code_hash: type_script.code_hash)
 
     expected_attributes = %i(id capacity address_hash status consumed_tx_hash cell_type udt_info).sort
-    expected_udt_attributes = %i(symbol amount decimal type_hash_short published).sort
+    expected_udt_attributes = %i(symbol amount decimal type_hash published).sort
     expected_display_input = CkbUtils.hash_value_to_s({ id: udt_cell_output.id, capacity: udt_cell_output.capacity, address_hash: udt_cell_output.address_hash, status: udt_cell_output.status, consumed_tx_hash: nil, cell_type: udt_cell_output.cell_type, udt_info: udt_cell_output.udt_info })
 
     assert_equal expected_attributes, udt_output_transaction.display_outputs.first.keys.sort

@@ -33,13 +33,13 @@ module CkbSync
         local_block.live_cell_changes = ckb_transactions.sum(&:live_cell_changes)
         CkbTransaction.import!(ckb_transactions, recursive: true, batch_size: 3500, validate: false)
         input_capacities = ckb_transactions.reject(&:is_cellbase).pluck(:id).to_h { |id| [id, []] }
-        update_tx_fee_related_data(local_block, input_capacities)
+        update_tx_fee_related_data(local_block, input_capacities, udt_infos)
         calculate_tx_fee(local_block, ckb_transactions, input_capacities, outputs.group_by(&:ckb_transaction_id))
 
         update_current_block_mining_info(local_block)
         update_block_contained_address_info(local_block)
         update_block_reward_info(local_block)
-        update_udt_accounts(udt_infos)
+        update_udt_accounts(udt_infos, local_block.timestamp)
         update_udt_info(udt_infos)
         dao_events = build_new_dao_depositor_events(new_dao_depositor_events)
         DaoEvent.import!(dao_events, validate: false)
@@ -67,7 +67,7 @@ module CkbSync
       Udt.import columns, import_values, validate: false, on_duplicate_key_update: { conflict_target: [:type_hash], columns: [:total_amount, :addresses_count] }
     end
 
-    def update_udt_accounts(udt_infos)
+    def update_udt_accounts(udt_infos, block_timestamp)
       return if udt_infos.blank?
 
       udt_infos.each do |udt_output|
@@ -78,8 +78,8 @@ module CkbSync
         if udt_account.present?
           udt_account.update!(amount: amount)
         else
-          udt = Udt.find_or_create_by!(type_hash: udt_output[:type_hash], code_hash: ENV["SUDT_CELL_TYPE_HASH"], udt_type: "sudt")
-          address.udt_accounts.create!(udt_type: udt.udt_type, full_name: udt.full_name, symbol: udt.symbol, decimal: udt.decimal, published: udt.published, code_hash: udt.code_hash, type_hash: udt.type_hash, amount: amount)
+          udt = Udt.find_or_create_by!(type_hash: udt_output[:type_hash], code_hash: ENV["SUDT_CELL_TYPE_HASH"], udt_type: "sudt", block_timestamp: block_timestamp)
+          address.udt_accounts.create!(udt_type: udt.udt_type, full_name: udt.full_name, symbol: udt.symbol, decimal: udt.decimal, published: udt.published, code_hash: udt.code_hash, type_hash: udt.type_hash, amount: amount, udt: udt)
         end
       end
     end
@@ -344,8 +344,18 @@ module CkbSync
         epoch: epoch_info.number,
         start_number: epoch_info.start_number,
         length: epoch_info.length,
-        dao: header.dao
+        dao: header.dao,
+        block_time: block_time(header.timestamp, header.number),
+        block_size: node_block.serialized_size_without_uncle_proposals
       )
+    end
+
+    def block_time(timestamp, number)
+      target_block_number = [number - 1, 0].max
+      return 0 if target_block_number.zero?
+
+      previous_block_timestamp = Block.find_by(number: target_block_number).timestamp
+      timestamp - previous_block_timestamp
     end
 
     def build_uncle_block(uncle_block, local_block)
@@ -518,7 +528,7 @@ module CkbSync
       )
     end
 
-    def update_tx_fee_related_data(local_block, input_capacities)
+    def update_tx_fee_related_data(local_block, input_capacities, udt_infos)
       local_block.cell_inputs.where(from_cell_base: false, previous_cell_output_id: nil).find_in_batches(batch_size: 3500) do |cell_inputs|
         updated_inputs = []
         updated_outputs = []
@@ -530,6 +540,9 @@ module CkbSync
             previous_cell_output = cell_input.previous_cell_output
             address_id = previous_cell_output.address_id
             input_capacities[ckb_transaction_id] << previous_cell_output.capacity
+            if previous_cell_output.udt?
+              udt_infos << { type_hash: previous_cell_output.node_output.type.compute_hash, address: previous_cell_output.address }
+            end
 
             link_previous_cell_output_to_cell_input(cell_input, previous_cell_output)
             update_previous_cell_output_status(ckb_transaction_id, previous_cell_output, consumed_tx.block_timestamp)
