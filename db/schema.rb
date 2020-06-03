@@ -218,6 +218,7 @@ ActiveRecord::Schema.define(version: 2020_06_01_121842) do
     t.jsonb "average_block_time"
     t.jsonb "nodes_distribution"
     t.integer "nodes_count"
+    t.decimal "locked_capacity", precision: 30
   end
 
   create_table "dao_contracts", force: :cascade do |t|

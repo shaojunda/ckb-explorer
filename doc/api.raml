@@ -647,6 +647,27 @@ types:
       },
       "circulation_ratio": {
         "type": "string"
+      },
+      "circulating_supply": {
+        "type": "string"
+      },
+      "burnt": {
+        "type": "string"
+      },
+      "locked_capacity": {
+        "type": "string"
+      },
+      "treasury_amount": {
+        "type": "string"
+      },
+      "mining_reward": {
+        "type": "string"
+      },
+      "deposit_compensation": {
+        "type": "string"
+      },
+      "liquidity": {
+        "type": "string"
       }
     }
   }
@@ -656,6 +677,15 @@ types:
     properties: {
       "address_balance_distribution": {
         type: "[][]",
+      }
+    }
+  }
+
+  monetary_data_attributes: {
+    type: object,
+    properties: {
+      "nominal_apc": {
+        type: "string[]",
       }
     }
   }
@@ -749,6 +779,15 @@ types:
       },
       "icon_file": {
         type: "string"
+      },
+      "description": {
+        type: "string"
+      },
+      "created_at": {
+        type: "string"
+      },
+      "published": {
+        type: "boolean"
       }
     }
   }
@@ -984,6 +1023,15 @@ types:
     }
   }
 
+  udts_response: {
+    type: object,
+    properties: {
+      "data": {
+        "type": "udt[]",
+      }
+    }
+  }
+
   index_statistic_response: {
     type: object,
     properties: {
@@ -1028,6 +1076,15 @@ types:
       }
     }
   }
+
+  monetary_data_response: {
+      type: object,
+      properties: {
+        "data": {
+          "type": monetary_data_attributes
+        }
+      }
+    }
 
   block_statistic_response: {
      type: object,
@@ -3471,6 +3528,62 @@ types:
                   ]
                 }
 
+/monetary_data:
+  /{indicator}:
+    uriParameters:
+      indicator:
+        description: The indicator name
+        required: true
+        type: string
+    get:
+      description: Returns the monetary data
+      responses:
+        200:
+          body:
+            application/vnd.api+json:
+              type: monetary_data_response
+              examples:
+                nominal_apc: |
+                  {
+                    "id": "1",
+                    "type": "monetary_data_data",
+                    "attributes": {
+                      "nominal_apc": [
+                        "4.0", "3.94574599", "3.89294403", "3.84153661", "3.79146919"
+                      ]
+                    }
+                  },
+                inflation_rate: |
+                 {
+                    "id": "1",
+                    "type": "monetary_data_data",
+                    "attributes": {
+                        "inflation_rate": {
+                           "nominal_apc": ["4.0", "3.94574599", "3.89294403", "3.84153661", "3.79146919"],
+                           "nominal_inflation_rate": ["16.5", "16.27620221", "16.05839416", "15.84633853"],
+                           "real_inflation_rate": ["12.5", "12.33045622", "12.16545012", "12.00480192"]
+                        }
+                    }
+                 }
+        404:
+          body:
+            application/vnd.api+json:
+              type: error_response
+              example: |
+                {
+                  "message": "Record Not Found",
+                  "errors": [
+                    {
+                      "id": "ActiveRecord::RecordNotFound",
+                      "code": "1141",
+                      "status": "404",
+                      "title": "Record not fund",
+                      "detail": "No matching address record were found",
+                      "href": "https://nervosnetwork.github.io/ckb-explorer/public/api_doc.html"
+                    }
+                  ]
+                }
+
 /block_statistics:
   /{indicator}:
     uriParameters:
@@ -3595,6 +3708,66 @@ types:
                 }
 
 /udts:
+  get:
+    description: Returns udts in reverse chronological order by addresses count.
+    responses:
+      200:
+        body:
+          application/vnd.api+json:
+            type: udts_response
+            example: |
+              {
+                "data": [
+                  {
+                    "id": "1",
+                    "type": "udt",
+                    "attributes": {
+                        "symbol": "kfc",
+                        "full_name": "Kingdom Fly Coin",
+                        "icon_file": "data:image/png;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAQDAwQDAwQEAwQFBAQFBgoHBgYGBg0JCggKDw0QEA8NDw4RExgUERIXEg4PFRwVFxkZGxsbEBQdHx0aHxgaGxr/2wBDAQQFBQYFBgwHBwwaEQ8RGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhr/wAARCAAoACgDASIAAhEBAxEB/8QAGwAAAgIDAQAAAAAAAAAAAAAAAAYEBwEFCAP/xAAtEAABAgUCBAUEAwAAAAAAAAABAgQAAwUREgYTFCExUSJBYXHwBxUygRaRwf/EABoBAAIDAQEAAAAAAAAAAAAAAAACAwUGBAf/xAAiEQABAwQCAgMAAAAAAAAAAAABAAIRAwQhMUFRBhMiQoH/2gAMAwEAAhEDEQA/AO83TtDWVnM6eXeFhzWJ7hRCV4pvyANvn7vGKu6LlyoXOKPCB8+c4pmhUKo6Zq8qq1yTw1PkZ7kwzQvHIEDkCT1IhXOhVd5ePtH0wKZc1xyeGjGTjWZzGlbW4c872Ve94nNa1ObqSCvNPmFG/wA/UUt9QdQU+tCn/anO+ZRmblkqTa+NuoHYxpadpOt1NtJdsmxmt5hulW8kXsbHkT6GENTMAKmr+QOFy6hbUfbHLTPXQOphdWNHct5KEyUfcdoIVqM6LV0hJJwX4VD5/f6giVa1QJmQUTMvl53ipdQfUEVqlOaf9vMgzbDc3srWUD0t6RdFYaqbuZhIOK7qSf8APnaOfdJ06RU9Rtmz+SZreYZmSTcA2SSOY9oiqE4A5WS8gr3LXUbag6PbLT+wOjG+F76T0mNTh2S7LXhyjpLzyyv6jtDKNUjRJTQOEL7hbDf3NvLLxfjY2tlbr5QaqvokNP4ungi7Kt8AbmWNrfle1sj07xsqDQafqalN6rXG3Ev54O7NKlIviogcgQByAhACMDaqrS0fbPNpaENuGj5O20tOYEznLfqNHPbvLyuDLvl5WgifR2hcOkGxCEG6j7QR0L0JNDtpLeSjLmj2PaFZ3R3DVRKZe4i/JSReCCBCgbaivAgFV7RsGdHcuFC6DLRfmoi0EECE0NGktnKEuUPc94IIIEL/2Q==",
+                        "total_amount": "10000000000",
+                        "addresses_count": "3",
+                        "decimal": "6",
+                        "h24_ckb_transactions_count": "0",
+                        "published": true,
+                        "description": "Kingdom Fly Coin",
+                        "created_at": "1591096409"
+                    }
+                  },
+                  {
+                    "id": "4",
+                    "type": "udt",
+                    "attributes": {
+                        "symbol": null,
+                        "full_name": null,
+                        "icon_file": null,
+                        "total_amount": "100000000000000000000",
+                        "addresses_count": "3",
+                        "decimal": "",
+                        "h24_ckb_transactions_count": "0",
+                        "published": false,
+                        "description": "",
+                        "created_at": "1591096409"
+                    }
+                  },
+                  {
+                    "id": "14",
+                    "type": "udt",
+                    "attributes": {
+                        "symbol": null,
+                        "full_name": null,
+                        "icon_file": null,
+                        "total_amount": "9999900000",
+                        "addresses_count": "1",
+                        "decimal": "",
+                        "h24_ckb_transactions_count": "0",
+                        "published": false,
+                        "description": "",
+                        "created_at": "1591096409"
+                    }
+                  }]
+              }
+
   /{type_hash}:
     uriParameters:
       type_hash:
