@@ -10,14 +10,48 @@ class Udt < ApplicationRecord
   attribute :code_hash, :ckb_hash
 
   def ckb_transactions
-    ckb_transaction_ids = CellOutput.udt.where(type_hash: type_hash).pluck("generated_by_id") + CellOutput.udt.where(type_hash: type_hash).pluck("consumed_by_id").compact
-    CkbTransaction.where(id: ckb_transaction_ids.uniq)
+    sql =
+      <<-SQL
+        SELECT
+          generated_by_id ckb_transaction_id
+        FROM
+          cell_outputs
+        WHERE
+          cell_type = #{CellOutput::cell_types['udt']}
+          AND
+          type_hash = '#{type_hash}'
+
+        UNION
+
+        SELECT
+          consumed_by_id ckb_transaction_id
+        FROM
+          cell_outputs
+        WHERE
+          cell_type = #{CellOutput::cell_types['udt']}
+          AND
+          type_hash = '#{type_hash}'
+          AND
+          consumed_by_id is not null
+      SQL
+    ckb_transaction_ids = CellOutput.select("ckb_transaction_id").from("(#{sql}) as cell_outputs")
+    CkbTransaction.where(id: ckb_transaction_ids.distinct)
   end
 
   def h24_ckb_transactions_count
     Rails.cache.realize("udt_h24_ckb_transactions_count_#{id}", expires_in: 1.hour) do
       ckb_transactions.where("block_timestamp >= ?", CkbUtils.time_in_milliseconds(24.hours.ago)).count
     end
+  end
+
+  def type_script
+    return unless published
+
+    {
+      args: args,
+      code_hash: code_hash,
+      hash_type: hash_type
+    }
   end
 end
 
@@ -43,6 +77,7 @@ end
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #  block_timestamp  :decimal(30, )
+#  issuer_address   :binary
 #
 # Indexes
 #
